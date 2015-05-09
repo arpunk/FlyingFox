@@ -1,7 +1,12 @@
 defmodule TxCreator do
-  def nonce(pub) do 
+
+  @epoch    Application.get_env :flying_fox, :epoch
+  @min_bond Application.get_env :flying_fox, :min_bond
+  @chances_per_address Application.get_env :flying_fox, :chances_per_address
+
+  def nonce(pub) do
     a=Mempool.txs |> Enum.filter(fn(tx) -> tx[:pub]==pub end) |> length
-    a+KV.get(pub)[:nonce] 
+    a+KV.get(pub)[:nonce]
   end
   def spend(amount, to) do
     pub = Keys.pubkey
@@ -9,18 +14,18 @@ defmodule TxCreator do
     if balance<amount do IO.puts("warning, you cannot afford to spend this tx, so it wont be valid") end
     tx=[type: "spend", to: to, amount: amount, nonce: nonce(pub), fee: 10000]
     tx = Keys.sign(tx)
-    Mempool.add_tx(tx)    
+    Mempool.add_tx(tx)
   end
   def sign do
     pub = Keys.pubkey
     acc = KV.get(pub)
-    if acc[:bond] > Constants.minbond do
+    if acc[:bond] > @min_bond do
       h=KV.get("height")
       if h<1 do prev_hash=nil else
         prev_hash = Blocktree.blockhash(Blockchain.get_block(h))
       end
       tot_bonds = KV.get("tot_bonds")
-      w=Enum.filter(0..Constants.chances_per_address, fn(x) -> VerifyTx.winner?(acc[:bond], tot_bonds, VerifyTx.rng(prev_hash), pub, x) end) 
+      w=Enum.filter(0..@chances_per_address, fn(x) -> VerifyTx.winner?(acc[:bond], tot_bonds, VerifyTx.rng(prev_hash), pub, x) end)
       h=KV.get("height")+1
       ran = KV.get("secret #{inspect h}")
       if ran == nil do
@@ -34,7 +39,7 @@ defmodule TxCreator do
     end
   end
   def reveal do
-    h=KV.get("height")-Constants.epoch
+    h=KV.get("height")-@epoch
     cond do
       h<2 -> nil
       true ->
@@ -53,8 +58,8 @@ defmodule TxCreator do
       tx = Keys.sign(tx)
       Mempool.add_tx(tx)
     end
-  end  
+  end
   def slasher(tx1, tx2) do
-    
+
   end
 end

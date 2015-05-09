@@ -1,22 +1,25 @@
 defmodule Talker do
+
+  @tcp_port Application.get_env :flying_fox, :tcp_port
+
   use GenServer
   def key do :talker end
   def start_link() do GenServer.start_link(__MODULE__, :ok, [name: key]) end
-  def init(:ok) do 
+  def init(:ok) do
     start
-    Enum.map(0..2, &([ip: "localhost", port: Constants.port+&1])) |> Enum.map(&(Peers.add_peer(&1)))
-    {:ok, []} 
+    Enum.map(0..2, &([ip: "localhost", port: @tcp_port+&1])) |> Enum.map(&(Peers.add_peer(&1)))
+    {:ok, []}
   end
-  def handle_cast(:doit, _) do 
-    check_peers    
-    {:noreply, []} 
+  def handle_cast(:doit, _) do
+    check_peers
+    {:noreply, []}
   end
   def doit do GenServer.cast(key, :doit) end
   def timer do
     :timer.sleep(3000)#using a timer to stop crash on boot
     doit
     timer
-  end  
+  end
   def start do spawn_link(fn() -> timer end) end
   #this module creates and maintains connections with multiple peers. It downloads blocks from them.
   #grabs the list of peers from peers thread.
@@ -30,7 +33,7 @@ defmodule Talker do
     lo = length(out)
     cond do
       lo >= n -> out
-      true -> 
+      true ->
         out = out++Api.blocks(i+lo, i+n, p[:port], p[:ip])
         download(n-1, i, p, out)
     end
@@ -47,7 +50,7 @@ defmodule Talker do
       hd(my_block)[:data][:hash] == hd(blocks)[:data][:hash] ->
         BlockAbsorber.absorb(blocks)
         [status: :ahead]
-      true -> 
+      true ->
         blocks = download(50, max(0, i-40), p)
         BlockAbsorber.absorb(blocks)
         [status: :fork, height: u, peer: p]
@@ -72,7 +75,7 @@ defmodule Talker do
 			not is_list(status) -> IO.puts "status #{inspect status}"
       :error in Dict.keys(status) ->
         status[:error]
-      true -> 
+      true ->
         Peers.get(p) |> Dict.put(:height, status[:height]) |> Dict.put(:hash, status[:hash]) |> Peers.add_peer
         check_peer_2(p, status)
     end
@@ -84,7 +87,7 @@ defmodule Talker do
     i=KV.get("height")
     cond do
       txs == :ok -> IO.puts("txs shouldn't be :ok")
-      (txs != []) and length(txs)>0 and is_tuple(hd(txs)) -> 
+      (txs != []) and length(txs)>0 and is_tuple(hd(txs)) ->
         IO.puts("tx error #{inspect txs}")
       u>i -> download_blocks(i, u, p)
       u==i -> Enum.map(txs, &(Mempool.add_tx(&1)))
@@ -94,8 +97,8 @@ defmodule Talker do
     end
   end
   def check_peers do
-    Peers.get_all 
-    |> Enum.map(&(elem(&1,1))) 
+    Peers.get_all
+    |> Enum.map(&(elem(&1,1)))
     |> Enum.map(&(spawn_link(fn -> check_peer(&1) end)))
    end
 end

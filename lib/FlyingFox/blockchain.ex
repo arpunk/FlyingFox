@@ -1,8 +1,17 @@
-defmodule Blockchain do#the part the blocktree we care about is the blockchain, it ends in the most recent valid block.
+defmodule Blockchain do
+  #the part the blocktree we care about is the blockchain,
+  # it ends in the most recent valid block.
+
+  @signers_per_block  Application.get_env :flying_fox, :signers_per_block
+  @block_creation_fee Application.get_env :flying_fox, :block_creation_fee
+
   def txs_filter(txs, type) do Enum.filter(txs, fn(t) -> t[:data][:type]==type end) end
+
   def being_spent(txs) do txs |> txs_filter("spend") |> Enum.map(fn(t) -> t[:data][:amount] end) |> Enum.reduce(0, &(&1+&2)) end
+
   def prev_block(block) do KV.get(block[:data][:hash]) end
-  def valid_block?(block, cost) do 
+
+  def valid_block?(block, cost) do
     #block creator needs to pay a fee. he needs to have signed so we can take his fee.
     f = fn(x) -> x[:data][:bond_size] end
     prev = prev_block(block)
@@ -12,7 +21,7 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
     if min_bond == nil do min_bond = 100000 end
     ngenesis = block[:data][:height]!=1
     cond do
-      not is_list(block) -> 
+      not is_list(block) ->
         IO.puts("block should be a dict #{inspect block}")
         false
       min_bond*2/3>f.(block) ->#if the amount of money bonded per block changes too quickly, then it makes it more likely for double-spends to happen.
@@ -25,7 +34,7 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
       ngenesis and block[:data][:height] - prev[:data][:height] < 1 ->
         IO.puts("cannot redo history")
         false
-      not Sign.verify_tx(block) -> 
+      not Sign.verify_tx(block) ->
         IO.puts("bad signature #{inspect block}")
         false
       true ->
@@ -36,18 +45,18 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
   def valid_block_2?(block, cost, ngenesis) do
     wins = winners(block)
     cond do
-      ngenesis and wins < Constants.signers_per_block*2/3 -> 
+      ngenesis and wins < @signers_per_block*2/3 ->
         IO.puts("not enough signers #{inspect wins}")
         IO.puts("block: #{inspect block}")
         false
       not VerifyTx.check_txs(block, cost) ->
         IO.puts("invalid tx")
         false
-      true -> valid_block_3?(block, wins) 
+      true -> valid_block_3?(block, wins)
     end
   end
   def valid_block_3?(block, ns) do
-    txs = block[:data][:txs] 
+    txs = block[:data][:txs]
     sign_txs=txs_filter(txs, "sign")
     signers = Enum.map(sign_txs, fn(t) -> t[:pub] end)
     accs = Enum.map(signers, fn(s) -> KV.get(s) end)
@@ -56,10 +65,10 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
     spending=being_spent(txs)
     bs=block[:data][:bond_size]
     cond do
-      poorest_balance < bs -> 
+      poorest_balance < bs ->
         IO.puts("poorest signer cant afford")
         false
-      bs*ns<spending*3 -> 
+      bs*ns<spending*3 ->
         IO.puts("not enough bonds to spend that much")
         false
       true -> true
@@ -75,17 +84,17 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
     height=KV.get("height")
     prev_block = get_block(KV.get("height"))
     txs=Mempool.txs#remove expensive txs until we can afford it. packing problem.
-    bh=nil 
-    if prev_block != nil do 
+    bh=nil
+    if prev_block != nil do
       bh=Blocktree.blockhash(prev_block)
     end
-    new=[height: height+n, txs: txs, hash: bh, bond_size: 10_000_000_000_000/Constants.signers_per_block*3]#instead of fixed bond size, we shoul look at how big of a bond the txs need.
+    new=[height: height+n, txs: txs, hash: bh, bond_size: 10_000_000_000_000/@signers_per_block*3]#instead of fixed bond size, we shoul look at how big of a bond the txs need.
     new = Keys.sign(new)
     Dict.put(new, :meta, [revealed: []])
   end
-  def num_signers(txs) do 
+  def num_signers(txs) do
     txs_filter(txs, "sign")
-    |> Enum.map(fn(t) -> length(t[:data][:winners]) end) 
+    |> Enum.map(fn(t) -> length(t[:data][:winners]) end)
     |> Enum.reduce(0, &(&1+&2))
   end
   def back do
@@ -96,25 +105,25 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
         txs=block[:data][:txs]
         n=num_signers(txs)
         TxUpdate.txs_updates(txs, -1, round(block[:data][:bond_size] / n))
-        TxUpdate.sym_increment(block[:pub], :amount, -Constants.block_creation_fee, -1)
+        TxUpdate.sym_increment(block[:pub], :amount, -@block_creation_fee, -1)
         b = prev[:data][:height]
         if b==nil do b=0 end
         KV.put("height", b)
         Mempool.dump
-        true 
+        true
     end
   end
   def forward(block) do#while walking forward this needs to reorder the hashes used for get_block so that the block we are using is on top. I thought we only store one of the blockhashes...
     if not is_list(block) do block = KV.get(block) end
     gap = block[:data][:height]-KV.get("height")
-    cost = Constants.block_creation_fee*round(:math.pow(2, gap))
+    cost = @block_creation_fee*round(:math.pow(2, gap))
     cond do
       not is_list(block) -> [error: "blocks should be lists"]
       KV.get(Blocktree.blockhash(block)) == nil -> [error: "don't have this block"]
       gap < 1 -> [error: "cannot redo history"]
-      not valid_block?(block, cost) -> 
+      not valid_block?(block, cost) ->
         IO.puts("invalid block")
-        false      
+        false
       true ->
         #block creator needs to pay a fee. he needs to have signed so we can take his fee.
           TxUpdate.sym_increment(block[:pub], :amount, -cost, 1)
@@ -135,21 +144,21 @@ defmodule Blockchain do#the part the blocktree we care about is the blockchain, 
   end
   def goto_helper(last_blocks) do
     h = KV.get("height")
-    if h==0 do 
+    if h==0 do
       my_block = [height: 0]
       hash = ""
     else
-      my_block=get_block(h)[:data] 
+      my_block=get_block(h)[:data]
       hash = Blocktree.blockhash(my_block)
     end
     add_block = hd(last_blocks)[:data]
     cond do
-      length(last_blocks)>60 -> 
+      length(last_blocks)>60 ->
         IO.puts("error!#! #{inspect last_blocks}")
       hd(last_blocks) == [amount: 0, bond: 0, wait: {0, 0}, nonce: 0] ->
         IO.puts("error 2 #{inspect last_blocks}")
         Enum.map(tl(last_blocks), &(forward(&1)))
-      my_block[:height] == 0 or add_block[:hash] == hash -> 
+      my_block[:height] == 0 or add_block[:hash] == hash ->
         Enum.map(last_blocks, &(forward(&1)))
       add_block[:height] > my_block[:height] ->
         IO.puts("always here")
