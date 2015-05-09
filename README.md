@@ -1,6 +1,8 @@
 Flyingfox
 =========
 
+[![Join the chat at https://gitter.im/zack-bitcoin/flying-fox](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zack-bitcoin/flying-fox?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Donations: 1GbpRPE83Vjg73KFvTVZ4EnS2qNkiLY5TT
 
 This is a proof of stake blockchain written in elixir. It is not yet complete.
