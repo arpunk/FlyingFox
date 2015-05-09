@@ -26,6 +26,8 @@ defmodule Flyingfox.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    []
+    [{:ex_doc, "~> 0.7", only: :dev},
+     {:earmark, "~> 0.1", only: :dev},
+     {:poolboy, "~> 1.5"}]
   end
 end
