@@ -1,4 +1,8 @@
 defmodule Tcp do
+
+  @tcp_thread_time 500
+  @tcp_port Application.get_env :flying_fox, :tcp_port
+
   def open(port) do :gen_tcp.listen(port, [:binary, {:packet, 0}, {:active, false}]) end
   def close(socket) do :gen_tcp.close(socket) end
   def start(port, func) do
@@ -10,12 +14,12 @@ defmodule Tcp do
     if x==:ok do
       spawn(fn -> :timer.sleep(10)
         pid = spawn(fn -> new_peer(socket, port, func) end)
-        :timer.sleep(Constants.tcp_thread_time)
-        Process.exit(self(), :kill) 
+        :timer.sleep(@tcp_thread_time)
+        Process.exit(self(), :kill)
       end)
       conn |> listen |> func.() |> ms(conn) #these threads need a timer or something to kill them, otherwise we end up having too many.
     else
-      IO.puts "failed to connect #{inspect conn}" 
+      IO.puts "failed to connect #{inspect conn}"
       close(socket)
       :timer.sleep(500)
       spawn(fn -> start(port, func) end)
@@ -80,7 +84,7 @@ defmodule Tcp do
   end
   defp done_listening?(conn, data) do
     cond do
-      done(data) -> 
+      done(data) ->
         <<_::size(32), data::binary>> = data
         PackWrap.unpack(data)
       true -> listen(conn, data)
@@ -89,6 +93,6 @@ defmodule Tcp do
   def test do
     port = 0
     start(port, &(&1))
-    IO.puts(inspect talk("localhost", Constants.port, [a: [b: 3, d: "e"]]))
+    IO.puts(inspect talk("localhost", @tcp_port, [a: [b: 3, d: "e"]]))
   end
 end
