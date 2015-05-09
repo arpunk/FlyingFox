@@ -1,24 +1,34 @@
 defmodule Blocktree do
+
+  @initial_coins     Application.get_env :flying_fox, :initial_coins
+  @signers_per_block Application.get_env :flying_fox, :signers_per_block
+
   def blockhash(block) do
     if :data in Dict.keys(block) do block=block[:data] end
     DetHash.doit(block)
   end
+
   def genesis_block do
     new=[meta: [revealed: []], data: [height: 0, txs: []]]
     KV.put("height", 0)
     KV.put("0", ["genesis"])
     KV.put("genesis", new)
-    genesis_block = [meta: [revealed: []], pub: "BCmhaRq42NNQe6ZpRHIvDxHBThEE3LDBN68KUWXmCTKUZvMI8Ol1g9yvDVTvMsZbqHQZ5j8E7sKVCgZMJR7lQWc=", sig: "MEYCIQCu3JqIcIn3jqBhH0nqF8ZTJmdV9GzlJ6WpSq66PA20sAIhAINAuEyCyl2x/iK3BRJM0JGXcd8epnzv0kTX6iHOMAeW", data: [height: 1, txs: [], hash: "z5cVID5hEmZcWNVRmVPRUtSN7e2Z5nXecc+8KWbxk+4=", bond_size: 3.0e11]]
+    genesis_block = [meta: [revealed: []],
+                     pub: "BCmhaRq42NNQe6ZpRHIvDxHBThEE3LDBN68KUWXmCTKUZvMI8Ol1g9yvDVTvMsZbqHQZ5j8E7sKVCgZMJR7lQWc=",
+                     sig: "MEYCIQCu3JqIcIn3jqBhH0nqF8ZTJmdV9GzlJ6WpSq66PA20sAIhAINAuEyCyl2x/iK3BRJM0JGXcd8epnzv0kTX6iHOMAeW",
+                     data: [height: 1, txs: [], hash: "z5cVID5hEmZcWNVRmVPRUtSN7e2Z5nXecc+8KWbxk+4=", bond_size: 3.0e11]]
     put_block(genesis_block)
     KV.put("height", 1)
     KV.put("1", [blockhash(genesis_block)])
   end
+
   def sign_reveal do
     TxCreator.sign
     TxCreator.reveal
   end
+
   def put_block(block) do
-    height = block[:data][:height] 
+    height = block[:data][:height]
     IO.puts("height #{inspect height}")
     block_hash = blockhash(block)
     block_hashes = height |> Blockchain.get_helper
@@ -30,10 +40,11 @@ defmodule Blocktree do
       block_hash
     end
   end
+
   def genesis_state do
     genesis_block
     a=Constants.empty_account
-    ac=Constants.initial_coins
+    ac=@initial_coins
     b = ac/21
     a = Dict.put(a, :amount, 20*b)
     a = Dict.put(a, :bond, b)
@@ -49,17 +60,17 @@ defmodule Blocktree do
     ran=VerifyTx.rng(block[:data][:hash])
     tot_bonds = KV.get("tot_bonds")
     l = Blockchain.txs_filter(block[:data][:txs], "sign")
-    |> Enum.map(fn(sign) -> 
+    |> Enum.map(fn(sign) ->
       acc = KV.get(sign[:pub])
-      Enum.map(sign[:data][:winners], fn(x)-> 
-        VerifyTx.winner?(acc[:bond], tot_bonds, ran, sign[:pub], x) 
-      end) 
+      Enum.map(sign[:data][:winners], fn(x)->
+        VerifyTx.winner?(acc[:bond], tot_bonds, ran, sign[:pub], x)
+      end)
     end) |> Enum.reduce([], &(&1++&2)) |> Enum.map(&(if(&1) do 1 else 0 end)) |> Enum.reduce(0, &(&1+&2))
     cond do
-      Blockchain.winners(block) <= Constants.signers_per_block*2/3 -> 
+      Blockchain.winners(block) <= @signers_per_block*2/3 ->
         IO.puts("not enough winners")
         false
-      l <= Constants.signers_per_block*1/2 -> 
+      l <= @signers_per_block*1/2 ->
         IO.puts("not enough")
         false
       true -> true
@@ -76,7 +87,7 @@ defmodule Blocktree do
         enough_validated(tl(blocks), n-1)
     end
   end
-  def get_height(h) do 
+  def get_height(h) do
   a = KV.get(h)
   if a == nil do a = [] end
   a

@@ -1,18 +1,36 @@
-defmodule Main do
-  import Supervisor.Spec
+defmodule FlyingFox do
+  use Application
+
+  #####
+  # API
+
+  def start(_type, _args) do
+    import Supervisor.Spec, warn: false
+
+    children = [worker(KV, []),
+                worker(Keys, []),
+                worker(Mempool, []),
+                worker(BlockAbsorber, []),
+                worker(Peers, []),
+                worker(Listener, []),
+                worker(InternalListener, [])]
+
+
+
+  end
+
+  def stop(_state), do: :ok
+
+
+
+
   def start(n \\ 0) do
     p=n+Constants.port
     {x, socket} = Tcp.open(p)
     cond do
       x==:ok ->
         Tcp.close(socket)
-        children = [ worker(KV, []),
-                     worker(Keys, []),
-                     worker(Mempool, []), 
-                     worker(BlockAbsorber, []),                 
-                     worker(Peers, []),                 
-                     worker(Listener, []),
-                     worker(InternalListener, []) ]
+        children = [  ]
         {:ok, pid1} = Supervisor.start_link(children, strategy: :rest_for_one)
         pid2 = Tcp.start(p, &(Listener.export(&1)))
         pid3 = Tcp.start(p+1, &(InternalListener.export(&1, self())))
@@ -27,11 +45,10 @@ defmodule Main do
   end
   def killer(l) do
     receive do
-      :kill -> 
+      :kill ->
         IO.puts("main kill")
         Enum.map(l, &(Process.exit(&1, :kill)))
       true -> killer(l)
     end
   end
 end
-
