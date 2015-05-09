@@ -1,4 +1,4 @@
-defmodule KV do
+defmodule FlyingFox.KV do
   use GenServer
   def key do :kv end
   def start_link() do GenServer.start_link(__MODULE__, :ok, [name: key]) end
