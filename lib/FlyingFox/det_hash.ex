@@ -1,14 +1,23 @@
-defmodule DetHash do
-  def hash(s) do :crypto.hmac(:sha256, to_string(s), "") |> Base.encode64 end
-  def collect(l) do Enum.reduce(l, "", fn element, acc -> element<>acc end) end #list of strings -> string
-  def hash_list(l) do 
-    hash(collect(Enum.map(Enum.sort(l), fn x -> inspect(x) end))) end
+defmodule FlyingFox.DetHash do
+  def hash(s) do
+    :crypto.hmac(:sha256, to_string(s), "") |> Base.encode64
+  end
+
+  def collect(l) do
+    Enum.reduce(l, "", fn element, acc -> element<>acc end)
+  end #list of strings -> string
+
+  def hash_list(l) do
+    hash(collect(Enum.map(Enum.sort(l), fn x -> inspect(x) end)))
+  end
+
   def hash_dict(s) do
     keys = Dict.keys(s)
     keys = Enum.sort(keys)
-    values = Enum.map( keys, fn x -> elem(Dict.fetch(s, x), 1) end)
-    hash_list( keys ++ values )
+    values = Enum.map(keys, fn x -> elem(Dict.fetch(s, x), 1) end)
+    hash_list(keys ++ values)
   end
+
   def doit(a) do
     cond do
       is_list(a) -> hash_list(a)
@@ -19,6 +28,7 @@ defmodule DetHash do
       true -> hash_dict(a)
     end
   end
-  def test() do IO.puts(doit([a: :b])) end
-end
 
+  def test(), do: IO.puts(doit([a: :b]))
+
+end

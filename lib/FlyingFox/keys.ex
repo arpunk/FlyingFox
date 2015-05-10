@@ -1,5 +1,5 @@
-#these variables can be different on every node
-defmodule Keys do
+defmodule FlyingFox.Keys do
+  #these variables can be different on every node
   use GenServer
   def key do :address end
   def start_link() do GenServer.start_link(__MODULE__, :ok, [name: key]) end
